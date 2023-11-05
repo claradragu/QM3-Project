@@ -1,0 +1,564 @@
+---
+title: "qm3"
+output: pdf_document
+date: "2023-11-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Ageing Population vs Pension and Healthcare Costs
+
+# Project Overview
+
+This R Markdown document presents an analysis of the relationship between the ageing population, pension expenditure, and healthcare costs in France. The analysis is conducted using a variety of datasets related to population demographics, economic indicators, pension funds, and healthcare expenditures. The primary goal of this project is to explore the impact of an ageing population on pension expenditure and healthcare costs and to identify any potential correlations or trends that may exist.
+
+## Data Sources
+
+The project uses several datasets, including:
+
+- **Population and Age Demographics:**
+  - `population_growth_rate.csv`: Population growth rates in France.
+  - `birth_rates.csv`: Birth rates in France.
+  - `life_expectancy.csv`: Life expectancy data.
+  - `age-dependency.csv`: Age dependency ratios.
+
+- **Economic Data:**
+  - `unemployment-rate.csv`: Unemployment rates.
+  - `france_gdp.csv`: Gross Domestic Product (GDP) data for France.
+
+- **Pensions:**
+  - `pension_funds.csv`: Data related to pension funds and expenditure.
+
+- **Healthcare:**
+  - `total-healthcare-expenditure-gdp.csv`: Total healthcare expenditure as a percentage of GDP.
+  - `france-healthcare-spending.csv`: Healthcare spending data in France.
+
+## Data Analysis
+
+The analysis involves the following steps:
+
+1. Data Import: The project begins with the import of the necessary datasets, ensuring data consistency and cleaning if required.
+
+2. Exploratory Data Analysis (EDA): Initial data exploration is conducted to gain insights into the distributions and characteristics of the datasets.
+
+3. Correlation Analysis: The project examines the correlations between various demographic and economic factors, such as population growth, birth rates, and unemployment, and their impact on pension and healthcare costs.
+
+4. Multiple Linear Regression: A multiple linear regression model is used to predict pension and healthcare costs based on various independent variables.
+
+5. Visualization: Data visualizations are created to illustrate key findings and relationships.
+
+6. Conclusion: The project concludes with a summary of findings and insights regarding the relationship between ageing population, pension expenditure, and healthcare costs in France.
+
+# Importing the data
+```{r}
+data_folder <- "~/Downloads/"
+
+# Define the list of CSV files
+csv_files <- c("population_growth_rate.csv", "birth_rates.csv", "life_expectancy.csv","age-dependency.csv","unemployment-rate.csv", "france_gdp.csv", "pension_funds.csv", "total-healthcare-expenditure-gdp.csv", "france-healthcare-spending.csv","age_distribution.csv"
+ 
+)
+
+# Population and Age Demographics
+
+#Fine as is (1950-2100)
+population_growth_rate <- read.csv(file.path(data_folder, "population_growth_rate.csv"))
+
+#Per 1000 people (1950-2100)
+birth_rates <- read.csv(file.path(data_folder, "birth_rates.csv"))
+
+#Fine to use as is (1950-2100)
+life_expectancy <- read.csv(file.path(data_folder, "life_expectancy.csv"))
+
+# Work with the data as is, just extract data from France (1950-2021)
+age_dependency <- read.csv(file.path(data_folder, "age-dependency.csv"))
+
+# Percentages (2006-2022)
+age_distribution <- read.csv(file.path(data_folder, "age_distribution.csv"))
+
+
+# Economic Data
+# Use France Data (1991-2021)
+unemployment_rate <- read.csv(file.path(data_folder, "unemployment-rate.csv"))
+
+# Billion US dollars (1987-2028)
+gdp <- read.csv(file.path(data_folder, "france_gdp.csv"))
+
+
+# Pensions
+#Percentages of GDP Share (2002-2021)
+pension_funds <- read.csv(file.path(data_folder, "pension_funds.csv"))
+
+# Health 
+#Percentages of GDP share, use only France's Data (2000-2019)
+healthcare <- read.csv(file.path(data_folder, "total-healthcare-expenditure-gdp.csv"))
+
+#Percentage of GDP (2000-2020)
+france_healthcare <- read.csv(file.path(data_folder, "france-healthcare-spending.csv"))
+
+
+```
+
+## Cleaning, Formalising Data and Creating DataFrames
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+
+age_dependency_data <- subset(age_dependency, Entity == "France", select = c("Year", "Child.dependency.ratio...Sex..all...Age..none...Variant..estimates"))
+head(age_dependency_data)
+
+```
+```{r}
+# Assuming 'birth_rates' is your data frame
+birth_rates$date <- as.numeric(format(as.Date(birth_rates$date, format = "%m/%d/%y"), "%Y"))
+
+# Reset the row names (index)
+rownames(birth_rates) <- NULL
+
+# Drop the 'date' column
+birth_rates <- birth_rates[-which(names(birth_rates) == 'date')]
+
+# Create a new 'year' column from 1950 to 2100
+birth_rates$year <- 1950:2100
+
+
+head(birth_rates)
+
+```
+```{r}
+france_healthcare$date <- as.numeric(format(as.Date(france_healthcare$date, format = "%m/%d/%y"), "%Y"))
+
+# Reset the row names (index)
+rownames(france_healthcare) <- NULL
+
+
+head(france_healthcare)
+
+```
+```{r}
+france_healthcare <- france_healthcare[-which(names(france_healthcare) == 'X')]
+head(france_healthcare)
+```
+```{r}
+# Assuming 'birth_rates' is your data frame
+life_expectancy$date <- as.numeric(format(as.Date(life_expectancy$date, format = "%m/%d/%y"), "%Y"))
+
+# Reset the row names (index)
+rownames(life_expectancy) <- NULL
+
+# Drop the 'date' column
+life_expectancy <- life_expectancy[-which(names(life_expectancy) == 'date')]
+
+# Create a new 'year' column from 1950 to 2100
+life_expectancy$year <- 1950:2100
+
+
+head(life_expectancy)
+```
+```{r}
+pension_funds <- pension_funds[-which(names(pension_funds) == 'X')]
+head(pension_funds)
+```
+```{r}
+# Assuming 'birth_rates' is your data frame
+population_growth_rate$date <- as.numeric(format(as.Date(population_growth_rate$date, format = "%m/%d/%y"), "%Y"))
+
+# Reset the row names (index)
+rownames(population_growth_rate) <- NULL
+
+# Drop the 'date' column
+population_growth_rate <- population_growth_rate[-which(names(population_growth_rate) == 'date')]
+
+# Create a new 'year' column from 1950 to 2100
+population_growth_rate$year <- 1950:2100
+
+
+head(population_growth_rate)
+
+```
+```{r}
+unemployment_rate_data <- subset(unemployment_rate, Entity == "France", select = c("Year", "Unemployment..total....of.total.labor.force...modeled.ILO.estimate."))
+head(unemployment_rate_data)
+
+```
+## Summary statistics for new dataframes
+```{r}
+# Summary statistics for population_growth_rate
+summary(population_growth_rate)
+
+# Summary statistics for birth_rates
+summary(birth_rates)
+
+# Summary statistics for age_distribution
+summary(age_distribution)
+
+# Summary statistics for life_expectancy
+summary(life_expectancy)
+
+# Summary statistics for age_dependency
+summary(age_dependency_data)
+
+# Summary statistics for unemployment_rate
+summary(unemployment_rate_data)
+
+# Summary statistics for gdp
+summary(gdp)
+
+# Summary statistics for pension_funds
+summary(pension_funds)
+
+# Summary statistics for france_healthcare
+summary(france_healthcare)
+
+```
+
+# Multiple Linear Regression:
+Dependent Variable: Pension Expenditure or Healthcare Costs.
+Independent Variables: Various indicators of an aging population (e.g., percentage of elderly population, dependency ratio, life expectancy) and other relevant predictors (e.g., GDP, unemployment rate).
+This model allows you to assess the impact of multiple predictors on pension expenditure and healthcare costs simultaneously.
+
+```{r}
+population_growth_rate <- population_growth_rate %>%
+  filter(year >= 2006, year <= 2019)
+birth_rates <- birth_rates %>%
+  filter(year >= 2006, year <= 2019)
+life_expectancy<- life_expectancy %>%
+  filter(year >= 2006, year <= 2019)
+age_dependency <- age_dependency %>%
+  filter(Year >= 2006, Year <= 2019)
+age_distribution <- age_distribution %>%
+  filter(year >= 2006, year <= 2019)
+unemployment_rate_data <- unemployment_rate_data %>%
+  filter(Year >= 2006, Year <= 2019)
+gdp <- gdp %>%
+  filter(year >= 2006, year <= 2019)
+pension_funds <- pension_funds %>%
+  filter(year >= 2006, year <= 2019)
+france_healthcare <- france_healthcare %>%
+  filter(date >= 2006, date <= 2019)
+# Formalize the year column
+population_growth_rate <- population_growth_rate %>%
+  mutate(year = as.integer(year))
+
+birth_rates <- birth_rates %>%
+  mutate(year = as.integer(year))
+
+life_expectancy <- life_expectancy %>%
+  mutate(year = as.integer(year))
+
+age_dependency_data <- age_dependency_data %>%
+  mutate(year = as.integer(Year))  # Rename Year to year
+
+age_distribution <- age_distribution %>%
+  mutate(year = as.integer(year))
+
+unemployment_rate_data <- unemployment_rate_data %>%
+  mutate(year = as.integer(Year))  # Rename Year to year
+
+gdp <- gdp %>%
+  mutate(year = as.integer(year))
+
+pension_funds <- pension_funds %>%
+  mutate(year = as.integer(year))
+
+france_healthcare <- france_healthcare %>%
+  mutate(year = as.integer(date))  # Rename date to year
+
+
+```
+
+
+```{r}
+# Print the head of each dataset
+cat("Head of population_growth_rate dataset:\n")
+print(head(population_growth_rate))
+
+cat("\nHead of birth_rates dataset:\n")
+print(head(birth_rates))
+
+cat("\nHead of life_expectancy dataset:\n")
+print(head(life_expectancy))
+
+cat("\nHead of age_dependency dataset:\n")
+print(head(age_dependency))
+
+cat("\nHead of age_distribution dataset:\n")
+print(head(age_distribution))
+
+cat("\nHead of unemployment_rate dataset:\n")
+print(head(unemployment_rate_data))
+
+cat("\nHead of gdp dataset:\n")
+print(head(gdp))
+
+cat("\nHead of pension_funds dataset:\n")
+print(head(pension_funds))
+
+cat("\nHead of france_healthcare dataset:\n")
+print(head(france_healthcare))
+
+```
+```{r}
+# Print the dimensions of each dataframe
+cat("Dimensions of population_growth_rate dataset:\n")
+print(dim(population_growth_rate))
+
+cat("\nDimensions of birth_rates dataset:\n")
+print(dim(birth_rates))
+
+cat("\nDimensions of life_expectancy dataset:\n")
+print(dim(life_expectancy))
+
+cat("\nDimensions of age_dependency dataset:\n")
+print(dim(age_dependency_data))
+
+cat("\nDimensions of age_distribution dataset:\n")
+print(dim(age_distribution))
+
+cat("\nDimensions of unemployment_rate dataset:\n")
+print(dim(unemployment_rate_data))
+
+cat("\nDimensions of gdp dataset:\n")
+print(dim(gdp))
+
+cat("\nDimensions of pension_funds dataset:\n")
+print(dim(pension_funds))
+
+cat("\nDimensions of france_healthcare dataset:\n")
+print(dim(france_healthcare))
+
+```
+
+
+
+```{r}
+library(dplyr)
+
+resulting_df <- population_growth_rate %>%
+  left_join(birth_rates, by = "year") %>%
+  left_join(life_expectancy, by = "year") %>%
+  left_join(age_dependency_data, by = "year") %>%
+  left_join(age_distribution, by = "year") %>%
+  left_join(unemployment_rate_data, by = "year") %>%
+  left_join(gdp, by = "year") %>%
+  left_join(pension_funds, by = "year") %>%
+  left_join(france_healthcare, by = "year")
+
+# View the first few rows of the resulting dataframe
+head(resulting_df)
+```
+```{r}
+# Rename the variables in the resulting dataframe more concisely
+resulting_df <- resulting_df %>%
+  rename(
+    Population = Population,
+    GrowthRate = Annual.Growth.Rate,
+    Year = year,
+    BirthsPer1000 = Births.per.1000.People,
+    AnnualChange_x = Annual...Change.x,
+    LifeExpectancy = Life.Expectancy.from.Birth..Years.,
+    AnnualChange_y = Annual...Change.y,
+    Year_x = Year.x,
+    ChildDependency = Child.dependency.ratio...Sex..all...Age..none...Variant..estimates,
+    Age0_19 = X0.to.19.years.old,
+    Age20_59 = X20.to.59.years.old,
+    Age60_64 = X60.to.64.years.old,
+    Age65_older = X65.years.and.older,
+    Year_y = Year.y,
+    Unemployment = Unemployment..total....of.total.labor.force...modeled.ILO.estimate.,
+    GDP = France..Gross.domestic.product..GDP..in.current.prices.from.1987.to.2028..in.billion.U.S..dollars.,
+    PensionShareofGDP = pension.funds.as.a.GDP.share,
+    Date = date,
+    PerCapitaUS = Per.Capita..US...,
+    GDPShare = X..of.GDP
+  )
+
+# View the first few rows of the resulting dataframe with renamed variables
+head(resulting_df)
+
+```
+
+```{r}
+# Fit a multiple linear regression model for healthcare costs
+healthcare_model <- lm(GDPShare ~ Age65_older + ChildDependency + Unemployment, data =resulting_df)
+
+# Summary of the healthcare model
+summary(healthcare_model)
+```
+
+```{r}
+
+
+# Residuals vs. Fitted Values Plot
+plot(healthcare_model)
+# Normal Q-Q Plot
+qqnorm(residuals(healthcare_model))
+qqline(residuals(healthcare_model))
+# Scale-Location Plot
+plot(fitted(healthcare_model), sqrt(abs(resid(healthcare_model))))
+# Residuals vs. Leverage Plot
+plot(hatvalues(healthcare_model), resid(healthcare_model))
+
+# Partial Regression Plots
+library(car)  # Load the 'car' package for the 'qqPlot' function
+qqPlot(healthcare_model, "Age65_older")
+qqPlot(healthcare_model, "ChildDependency")
+qqPlot(healthcare_model, "Unemployment")
+
+
+
+```
+
+```{r}
+# Create a linear regression model with only "PensionShareGDP" and "Age65AndOlder"
+linear_model <- lm(GDPShare ~ Age65_older, data = resulting_df)
+
+# Summarize the regression results
+summary(pension_age_model)
+# Quadratic Regression
+quadratic_model <- lm(GDPShare ~ Age65_older + I(Age65_older^2), data = resulting_df)
+
+# Logarithmic Regression
+logarithmic_model <- lm(log(GDPShare) ~ log(Age65_older), data = resulting_df)
+
+# Evaluate the models
+linear_r_squared <- summary(linear_model)$r.squared
+quadratic_r_squared <- summary(quadratic_model)$r.squared
+logarithmic_r_squared <- summary(logarithmic_model)$r.squared
+
+# Print R-squared values
+cat("Linear R-squared:", linear_r_squared, "\n")
+cat("Quadratic R-squared:", quadratic_r_squared, "\n")
+cat("Logarithmic R-squared:", logarithmic_r_squared, "\n")
+
+# Choose the model with the highest R-squared
+best_model <- linear_model
+if (quadratic_r_squared > linear_r_squared) {
+  best_model <- quadratic_model
+}
+if (logarithmic_r_squared > max(linear_r_squared, quadratic_r_squared)) {
+  best_model <- logarithmic_model
+}
+
+
+# Visualize the results
+plot(resulting_df$Age65_older, resulting_df$GDPShare, xlab = "Age 65 and Older", ylab = "Healthcare Share of GDP", main = "Regression Models")
+
+# Fit and plot the linear regression line
+abline(linear_model, col = "blue")
+
+# Fit and plot the quadratic regression curve
+quadratic_fit <- predict(quadratic_model)
+lines(resulting_df$Age65_older, quadratic_fit, col = "red")
+
+# Fit and plot the logarithmic regression curve
+logarithmic_fit <- exp(predict(logarithmic_model))
+lines(resulting_df$Age65_older, logarithmic_fit, col = "green")
+
+# Add legends
+legend("topleft", legend = paste("Linear R-squared =", round(summary(linear_model)$r.squared, 4)), col = "blue", lty = 1)
+legend("topleft", legend = paste("Quadratic R-squared =", round(summary(quadratic_model)$r.squared, 4)), col = "red", lty = 1)
+legend("topleft", legend = paste("Logarithmic R-squared =", round(summary(logarithmic_model)$r.squared, 4)), col = "green", lty = 1)
+
+```
+
+
+```{r}
+# Linear Regression
+linear_model <- lm(PensionShareofGDP ~ Age65_older, data = resulting_df)
+
+# Quadratic Regression
+quadratic_model <- lm(PensionShareofGDP ~ Age65_older + I(Age65_older^2), data = resulting_df)
+
+# Logarithmic Regression
+logarithmic_model <- lm(log(PensionShareofGDP) ~ log(Age65_older), data = resulting_df)
+
+# Evaluate the models
+linear_r_squared <- summary(linear_model)$r.squared
+quadratic_r_squared <- summary(quadratic_model)$r.squared
+logarithmic_r_squared <- summary(logarithmic_model)$r.squared
+
+# Print R-squared values
+cat("Linear R-squared:", linear_r_squared, "\n")
+cat("Quadratic R-squared:", quadratic_r_squared, "\n")
+cat("Logarithmic R-squared:", logarithmic_r_squared, "\n")
+
+# Choose the model with the highest R-squared
+best_model <- linear_model
+if (quadratic_r_squared > linear_r_squared) {
+  best_model <- quadratic_model
+}
+if (logarithmic_r_squared > max(linear_r_squared, quadratic_r_squared)) {
+  best_model <- logarithmic_model
+}
+
+
+
+# Visualize the results
+plot(resulting_df$Age65_older, resulting_df$PensionShareofGDP, xlab = "Age 65 and Older", ylab = "Pension Share of GDP", main = "Regression Models")
+
+# Fit and plot the linear regression line
+abline(linear_model, col = "blue")
+
+# Fit and plot the quadratic regression curve
+quadratic_fit <- predict(quadratic_model)
+lines(resulting_df$Age65_older, quadratic_fit, col = "red")
+
+# Fit and plot the logarithmic regression curve
+logarithmic_fit <- exp(predict(logarithmic_model))
+lines(resulting_df$Age65_older, logarithmic_fit, col = "green")
+
+# Add legends
+legend("topleft", legend = paste("Linear R-squared =", round(summary(linear_model)$r.squared, 4)), col = "blue", lty = 1)
+legend("topleft", legend = paste("Quadratic R-squared =", round(summary(quadratic_model)$r.squared, 4)), col = "red", lty = 1)
+legend("topleft", legend = paste("Logarithmic R-squared =", round(summary(logarithmic_model)$r.squared, 4)), col = "green", lty = 1)
+
+```
+
+
+```{r}
+# Fit a multiple linear regression model with more variables
+linear_model <- lm(PensionShareofGDP ~ Age65_older + ChildDependency + GDPShare + Unemployment, data = resulting_df)
+
+# Summary of the updated linear model
+summary(linear_model)
+
+
+# Residuals vs. Fitted Values Plot
+plot(linear_model)
+# Normal Q-Q Plot
+qqnorm(residuals(linear_model))
+qqline(residuals(linear_model))
+# Scale-Location Plot
+plot(fitted(linear_model), sqrt(abs(resid(linear_model))))
+
+# Partial Regression Plots
+library(car)  # Load the 'car' package for the 'qqPlot' function
+qqPlot(linear_model, "Age65_older")
+qqPlot(linear_model, "ChildDependency")
+qqPlot(linear_model, "Unemployment")
+
+
+```
+
+```{r}
+# Fit a multiple linear regression model with more variables
+linear_model <- lm(PensionShareofGDP ~ Age65_older + ChildDependency + GDPShare + Unemployment+ Population + BirthsPer1000, data = resulting_df)
+
+# Summary of the updated linear model
+summary(linear_model)
+
+```
+
+```{r}
+# Fit a multiple linear regression model with more variables
+linear_model <- lm(GDPShare ~ Age65_older + ChildDependency + GDPShare + Unemployment+ Population , data = resulting_df)
+
+# Summary of the updated linear model
+summary(linear_model)
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
