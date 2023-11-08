@@ -1,0 +1,787 @@
+---
+title: "qm3"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+date: "2023-11-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Aging Population vs Pension and Healthcare Costs
+
+# Abstract
+The purpose of this project is to understand the economic pressures France faces due to an aging population through healthcare and pension expenditure. Our analysis refers to data from 1991-2019. We utilised various linear regression models and evaluated their fit. Our key findings reveal that the quadratic regression model, with an R-squared value of 0.93 and a low root mean square error, signifies a strong relationship between an ageing population and public health expenditure. This conveys the need to address the economic implications of an aging demographic to ensure sustainability of public expenditures and the well-being of the elderly population.
+
+# Project Overview
+
+This R Markdown document presents an analysis of the relationship between the ageing population, pension expenditure, and healthcare costs in France. The analysis is conducted using a variety of datasets related to population demographics, economic indicators, pension funds, and healthcare expenditures. The primary goal of this project is to explore the impact of an ageing population on pension expenditure and healthcare costs and to identify any potential correlations or trends that may exist.
+
+## Data Sources
+
+The project uses several datasets, including:
+
+- **Population and Age Demographics:**
+  - `population_growth_rate.csv`: Population growth rates in France.
+  - `birth_rates.csv`: Birth rates in France.
+  - `life_expectancy.csv`: Life expectancy data.
+  - `age-dependency.csv`: Age dependency ratios.
+
+- **Economic Data:**
+  - `unemployment-rate.csv`: Unemployment rates.
+  - `france_gdp.csv`: Gross Domestic Product (GDP) data for France.
+
+- **Pensions:**
+  - `pension_funds.csv`: Data related to pension funds and expenditure.
+
+- **Healthcare:**
+  - `Health.csv`: Healthcare spending data in France as a share of GDP.
+
+## Data Analysis
+
+The analysis involves the following steps:
+
+1. **Data Import:** The project begins with the import of the necessary datasets, ensuring data consistency and cleaning if required.
+
+2. **Data Cleaning and Exploratory Data Analysis (EDA):** Initial data exploration is conducted to gain insights into the distributions and characteristics of the datasets.
+
+3. **Linear Regression:** We applied linear regression to analyze the relationship between public health expenditure and various predictor variables. This tool helped us understand how changes in the predictor variables are associated with changes in the dependent variable (public health expenditure/ pensions).
+
+4. **Quadratic Regression:** We also employed quadratic regression, a type of polynomial regression, which allows to capture more complex relationships between variables. In this case, it provided a higher R-squared value, indicating a potentially better fit for the data.
+
+5. **Logarithmic Regression:** Logarithmic regression is used to model relationships where the dependent variable is expected to change proportionally with the logarithm of the predictor variable. This model was used to analyze the relationship between public health expenditure/pensions and other factors.
+
+6. **R-squared (R^2) Values:** We assessed the goodness of fit for each model using R-squared values. R-squared measures how well the regression model explains the variance in the dependent variable. Higher R-squared values indicate a better fit.
+
+7. **Root Mean Square Error (RMSE):** RMSE is a measure of the differences between predicted values and actual values. We used RMSE to evaluate the accuracy of the models, with lower RMSE values indicating better predictive accuracy.
+
+8. **Statistical Significance:** We assessed the statistical significance of coefficients within the regression models, typically using p-values. Significant coefficients indicate that the predictor variables have a meaningful impact on the dependent variable.
+
+
+9. **AIC (Akaike Information Criterion)** We evaluated the goodness of fit of a statistical model while penalizing for the number of parameters in the model. It is a way to balance the trade-off between model complexity and how well the model fits the data. Lower AIC values indicate a better trade-off between model fit and simplicity.
+
+10. **Visualization:** Data visualizations are created to illustrate key findings and relationships.
+
+11. **Conclusion:** The project concludes with a summary of findings and insights regarding the relationship between ageing population, pension expenditure, and healthcare costs in France. We gained insights into the relationship between public health expenditure and various demographic and socio-economic factors. These tools helped us model, understand, and quantify these relationships, enabling data-driven decision-making and policy recommendations.
+
+# Importing the data
+
+```{r}
+library(dplyr)
+
+# data_folder <- "~/Downloads/"
+
+data_folder <- getwd()
+
+# Define the list of CSV files
+csv_files <- c("population_growth_rate.csv", "birth_rates.csv", "life_expectancy.csv","age-dependency.csv","unemployment-rate.csv", "france_gdp.csv", "Pensions.csv", "Health.csv","Distribution.csv"
+ 
+)
+
+# Population and Age Demographics
+
+#Fine as is (1950-2100)
+population_growth_rate <- read.csv(file.path(data_folder, "population_growth_rate.csv"))
+
+#Per 1000 people (1950-2100)
+birth_rates <- read.csv(file.path(data_folder, "birth_rates.csv"))
+
+#Fine to use as is (1950-2100)
+life_expectancy <- read.csv(file.path(data_folder, "life_expectancy.csv"))
+
+# Work with the data as is, just extract data from France (1950-2021)
+age_dependency <- read.csv(file.path(data_folder, "age-dependency.csv"))
+
+# Percentages (2006-2022)
+age_distribution <- read.csv(file.path(data_folder, "Distribution.csv"))
+
+
+# Economic Data
+# Use France Data (1991-2021)
+unemployment_rate <- read.csv(file.path(data_folder, "unemployment-rate.csv"))
+
+# Billion US dollars (1987-2028)
+gdp <- read.csv(file.path(data_folder, "france_gdp.csv"))
+
+
+# Pensions
+#Percentages of GDP Share (2002-2021)
+pension_funds <- read.csv(file.path(data_folder, "Pensions.csv"))
+
+# Health 
+#Percentages of GDP share, use only France's Data (2000-2019)
+healthcare <- read.csv(file.path(data_folder, "Health.csv"))
+
+
+```
+
+## Cleaning, Formalising Data and Creating DataFrames
+
+This section is dedicated to cleaning the datasets in order to have a consistent timeframe and values. 
+
+```{r pressure, echo=FALSE}
+
+age_dependency_data <- subset(age_dependency, Entity == "France", select = c("Year", "Child.dependency.ratio...Sex..all...Age..none...Variant..estimates"))
+head(age_dependency_data)
+
+```
+```{r}
+birth_rates$date <- as.numeric(format(as.Date(birth_rates$date, format = "%m/%d/%y"), "%Y"))
+
+# Reset the row names (index)
+rownames(birth_rates) <- NULL
+
+# Drop the 'date' column
+birth_rates <- birth_rates[-which(names(birth_rates) == 'date')]
+
+# Create a new 'year' column from 1950 to 2100
+birth_rates$year <- 1950:2100
+
+
+head(birth_rates)
+
+```
+```{r}
+
+healthcare <- subset(healthcare, Entity == "France", select = c("Year", "public_health_expenditure_pc_gdp"))
+head(healthcare)
+
+```
+
+```{r}
+
+life_expectancy$date <- as.numeric(format(as.Date(life_expectancy$date, format = "%m/%d/%y"), "%Y"))
+
+# Reset the row names (index)
+rownames(life_expectancy) <- NULL
+
+# Drop the 'date' column
+life_expectancy <- life_expectancy[-which(names(life_expectancy) == 'date')]
+
+# Create a new 'year' column from 1950 to 2100
+life_expectancy$year <- 1950:2100
+
+
+head(life_expectancy)
+```
+
+```{r}
+
+population_growth_rate$date <- as.numeric(format(as.Date(population_growth_rate$date, format = "%m/%d/%y"), "%Y"))
+
+# Reset the row names (index)
+rownames(population_growth_rate) <- NULL
+
+# Drop the 'date' column
+population_growth_rate <- population_growth_rate[-which(names(population_growth_rate) == 'date')]
+
+# Create a new 'year' column from 1950 to 2100
+population_growth_rate$year <- 1950:2100
+
+
+head(population_growth_rate)
+
+```
+```{r}
+unemployment_rate_data <- subset(unemployment_rate, Entity == "France", select = c("Year", "Unemployment..total....of.total.labor.force...modeled.ILO.estimate."))
+head(unemployment_rate_data)
+
+```
+```{r}
+library(dplyr)
+
+age_distribution  <- age_distribution  %>%
+  arrange(Country.Name, Year)
+
+age_distribution <- subset(age_distribution, Country.Name == "France" & Disaggregation=="total, 65+",select = c("Year", "Value"))
+head(age_distribution)
+```
+
+## Summary statistics for new dataframes
+```{r}
+# Summary statistics for population_growth_rate
+summary(population_growth_rate)
+
+# Summary statistics for birth_rates
+summary(birth_rates)
+
+# Summary statistics for age_distribution
+summary(age_distribution)
+
+# Summary statistics for life_expectancy
+summary(life_expectancy)
+
+# Summary statistics for age_dependency
+summary(age_dependency_data)
+
+# Summary statistics for unemployment_rate
+summary(unemployment_rate_data)
+
+# Summary statistics for gdp
+summary(gdp)
+
+# Summary statistics for pension_funds
+summary(pension_funds)
+
+# Summary statistics for france_healthcare
+summary(healthcare)
+
+```
+
+# Create a consistent timeline
+
+```{r}
+population_growth_rate <- population_growth_rate %>%
+  filter(year >= 1991, year <= 2019)
+birth_rates <- birth_rates %>%
+  filter(year >= 1991, year <= 2019)
+life_expectancy<- life_expectancy %>%
+  filter(year >= 1991, year <= 2019)
+age_dependency_data <- age_dependency_data %>%
+  filter(Year >= 1991, Year <= 2019)
+age_distribution <- age_distribution %>%
+  filter(Year >= 1991, Year <= 2019)
+unemployment_rate_data <- unemployment_rate_data %>%
+  filter(Year >= 1991, Year <= 2019)
+gdp <- gdp %>%
+  filter(year >= 1991, year <= 2019)
+pension_funds <- pension_funds %>%
+  filter(Year >= 1991, Year <= 2019)
+healthcare <- healthcare %>%
+  filter(Year >= 1991, Year <= 2019)
+# Formalize the year column
+population_growth_rate <- population_growth_rate %>%
+  mutate(year = as.integer(year))
+
+birth_rates <- birth_rates %>%
+  mutate(year = as.integer(year))
+
+life_expectancy <- life_expectancy %>%
+  mutate(year = as.integer(year))
+
+age_dependency_data <- age_dependency_data %>%
+  mutate(year = as.integer(Year))  # Rename Year to year
+
+age_distribution <- age_distribution %>%
+  mutate(year = as.integer(Year))
+
+unemployment_rate_data <- unemployment_rate_data %>%
+  mutate(year = as.integer(Year))  # Rename Year to year
+
+gdp <- gdp %>%
+  mutate(year = as.integer(year))
+
+pension_funds <- pension_funds %>%
+  mutate(year = as.integer(Year))
+
+healthcare <- healthcare %>%
+  mutate(year = as.integer(Year))  # Rename Year to year
+
+
+```
+
+
+```{r}
+# Print the head of each dataset
+cat("Head of population_growth_rate dataset:\n")
+print(head(population_growth_rate))
+
+cat("\nHead of birth_rates dataset:\n")
+print(head(birth_rates))
+
+cat("\nHead of life_expectancy dataset:\n")
+print(head(life_expectancy))
+
+cat("\nHead of age_dependency dataset:\n")
+print(head(age_dependency_data))
+
+cat("\nHead of age_distribution dataset:\n")
+print(head(age_distribution))
+
+cat("\nHead of unemployment_rate dataset:\n")
+print(head(unemployment_rate_data))
+
+cat("\nHead of gdp dataset:\n")
+print(head(gdp))
+
+cat("\nHead of pension_funds dataset:\n")
+print(head(pension_funds))
+
+cat("\nHead of france_healthcare dataset:\n")
+print(head(healthcare))
+
+```
+```{r}
+# Print the dimensions of each dataframe
+cat("Dimensions of population_growth_rate dataset:\n")
+print(dim(population_growth_rate))
+
+cat("\nDimensions of birth_rates dataset:\n")
+print(dim(birth_rates))
+
+cat("\nDimensions of life_expectancy dataset:\n")
+print(dim(life_expectancy))
+
+cat("\nDimensions of age_dependency dataset:\n")
+print(dim(age_dependency_data))
+
+cat("\nDimensions of age_distribution dataset:\n")
+print(dim(age_distribution))
+
+cat("\nDimensions of unemployment_rate dataset:\n")
+print(dim(unemployment_rate_data))
+
+cat("\nDimensions of gdp dataset:\n")
+print(dim(gdp))
+
+cat("\nDimensions of pension_funds dataset:\n")
+print(dim(pension_funds))
+
+cat("\nDimensions of france_healthcare dataset:\n")
+print(dim(healthcare))
+
+```
+
+# Create a unified dataframe from our clean dataframes
+
+```{r}
+library(dplyr)
+
+resulting_df <- population_growth_rate %>%
+  left_join(birth_rates, by = "year") %>%
+  left_join(life_expectancy, by = "year") %>%
+  left_join(age_dependency_data, by = "year") %>%
+  left_join(age_distribution, by = "year") %>%
+  left_join(unemployment_rate_data, by = "year") %>%
+  left_join(gdp, by = "year") %>%
+  left_join(pension_funds, by = "year") %>%
+  left_join(healthcare, by = "year")
+
+# View the first few rows of the resulting dataframe
+head(resulting_df)
+```
+```{r}
+library(dplyr)
+# Excluding columns starting with "Year"
+resulting_df <- resulting_df %>%
+  select(-starts_with("Year"))
+
+head(resulting_df)
+```
+# Rename the columns
+
+```{r}
+
+# Renaming Variables
+resulting_df <- resulting_df %>%
+  rename(
+    Population = Population,
+    PopGrowthRate = Annual.Growth.Rate,
+    BirthRate = Births.per.1000.People,
+    AnnualChange_BirthRate = Annual...Change.x,
+    LifeExpectancy = Life.Expectancy.from.Birth..Years.,
+    AnnualChange_LifeExpectancy = Annual...Change.y,
+    ChildDependencyRatio = Child.dependency.ratio...Sex..all...Age..none...Variant..estimates,
+    Age65_older=Value,
+    UnemploymentRate = Unemployment..total....of.total.labor.force...modeled.ILO.estimate.,
+    GDP = France..Gross.domestic.product..GDP..in.current.prices.from.1987.to.2028..in.billion.U.S..dollars.,
+    Age65_older=Value,
+    PensionShare = Value....of.GDP.,
+    PublicHealthExpenditure = public_health_expenditure_pc_gdp
+  )
+
+
+resulting_df$year <- 1991:2019
+
+# View the first few rows of the resulting dataframe with renamed variables
+head(resulting_df)
+
+```
+# Multiple Linear Regression:
+Dependent Variable:Healthcare Costs.
+Independent Variables: Various indicators of an aging population (e.g., percentage of elderly population, dependency ratio, life expectancy) and other relevant predictors (e.g., GDP, unemployment rate).
+This model allows us to assess the impact of multiple predictors on pension expenditure and healthcare costs simultaneously.
+
+```{r}
+# Fit a multiple linear regression model for healthcare costs
+healthcare_model <- lm(PublicHealthExpenditure ~ Age65_older + ChildDependencyRatio + UnemploymentRate, data =resulting_df)
+
+# Summary of the healthcare model
+summary(healthcare_model)
+
+# Step-wise comparison
+library(MASS)
+step.model = stepAIC(healthcare_model, direction = 'both', trace=FALSE)
+summary(step.model)
+```
+The linear regression model results show that public health expenditure is positively influenced by the proportion of the population aged 65 and older (Age65_older), as indicated by the positive coefficient of 0.47708. Conversely, public health expenditure decreases with a higher child dependency ratio (ChildDependencyRatio), as reflected by the negative coefficient of -0.41534. Additionally, the model suggests that higher unemployment rates (UnemploymentRate) are associated with increased public health expenditure, with a coefficient of 0.11827. The model exhibits a high degree of statistical significance, as all three predictor variables have p-values less than 0.05, indicating that their effects on public health expenditure are unlikely to be due to random chance. The overall model explains a significant proportion of the variance in public health expenditure, with a high R-squared value of 0.9073, suggesting that these socio-economic factors collectively provide valuable insights into understanding public health expenditure trends.
+
+```{r}
+
+
+# Residuals vs. Fitted Values Plot
+plot(healthcare_model)
+# Normal Q-Q Plot
+qqnorm(residuals(healthcare_model))
+qqline(residuals(healthcare_model))
+# Scale-Location Plot
+plot(fitted(healthcare_model), sqrt(abs(resid(healthcare_model))))
+# Residuals vs. Leverage Plot
+plot(hatvalues(healthcare_model), resid(healthcare_model))
+
+# Partial Regression Plots
+library(car)  # Load the 'car' package for the 'qqPlot' function
+qqPlot(healthcare_model, "Age65_older")
+qqPlot(healthcare_model, "ChildDependency")
+qqPlot(healthcare_model, "Unemployment")
+
+
+
+```
+1. **Residuals vs. Fitted Values Plot**:
+    - This plot is used to assess whether the residuals (the differences between the actual values and the predicted values) have a pattern. If there is a pattern, it indicates that the linear regression model might not be suitable.
+2. **Normal Q-Q Plot**:
+    - This plot is used to check if the residuals follow a normal distribution. In a Q-Q plot, if the points closely follow a straight line, it suggests that the residuals are normally distributed.
+3. **Scale-Location Plot**:
+    - This plot is used to check for homoscedasticity (constant variance) of the residuals. A spread of points around a horizontal line suggests homoscedasticity.
+4. **Residuals vs. Leverage Plot**:
+    - This plot helps identify influential data points. Data points with high leverage can significantly affect the regression model.
+5. **Partial Regression Plots**:
+    - These plots are used to examine the relationship between individual independent variables and the dependent variable while controlling for other variables in the model.
+6. **Linear Regression Model Summaries**:
+    - Several linear regression models are fitted to the data using the **`lm()`** function. These models have different combinations of independent variables, and each model is assessed using summary statistics.
+    - The output provides information about the coefficients, p-values, and R-squared values for each model.
+7. **Printing Summary Statistics**:
+    - The code seems to be evaluating multiple regression models with different combinations of independent variables. It calculates AIC (Akaike Information Criterion) values for each model to assess their goodness of fit.
+
+```{r}
+# Create a linear regression model with only "PensionShareGDP" and "Age65AndOlder"
+linear_model <- lm(PublicHealthExpenditure ~ Age65_older, data = resulting_df)
+
+# Summarize the regression results
+summary(linear_model)
+# Quadratic Regression
+quadratic_model <- lm(PublicHealthExpenditure ~ Age65_older + I(Age65_older^2), data = resulting_df)
+
+# Logarithmic Regression
+logarithmic_model <- lm(log(PublicHealthExpenditure) ~ log(Age65_older), data = resulting_df)
+
+# Evaluate the models
+linear_r_squared <- summary(linear_model)$r.squared
+quadratic_r_squared <- summary(quadratic_model)$r.squared
+logarithmic_r_squared <- summary(logarithmic_model)$r.squared
+
+# Print R-squared values
+cat("Linear R-squared:", linear_r_squared, "\n")
+cat("Quadratic R-squared:", quadratic_r_squared, "\n")
+cat("Logarithmic R-squared:", logarithmic_r_squared, "\n")
+
+# Choose the model with the highest R-squared
+best_model <- linear_model
+if (quadratic_r_squared > linear_r_squared) {
+  best_model <- quadratic_model
+}
+if (logarithmic_r_squared > max(linear_r_squared, quadratic_r_squared)) {
+  best_model <- logarithmic_model
+}
+
+# AIC comparison
+library(performance)
+library(see)
+
+AIC_comp <- compare_performance(linear_model, quadratic_model, logarithmic_model)
+print_md(AIC_comp)
+plot(AIC_comp)
+```
+In this context, AIC is used to compare the performance of different regression models. We have three models: linear, quadratic, and logarithmic. AIC values are provided for each model.
+
+- Lower AIC values indicate a better balance between model fit and complexity. Therefore, the "quadratic_model" with an AIC of 7.0 is the best among these three models as it has the lowest AIC.
+- AICc and BIC are similar concepts but account for sample size and are often used in situations with small sample sizes. In this case, AICc and BIC also favor the quadratic model.
+
+So, based on AIC, AICc, and BIC values, the quadratic model is considered the best model among the three for explaining the relationship between public health expenditure and the predictor variables. It provides the best balance of goodness of fit and model simplicity.
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+myColor = c('#82B0D2', '#FFBE7A', '#FA7F6F')
+
+# prepare data ready for plot
+df = cbind(resulting_df$Age65_older,
+           predict(linear_model), 
+           predict(quadratic_model), 
+           exp(predict(logarithmic_model)))
+df = as.tibble(df)
+colnames(df) <- c("Age65_older", 
+                  "linear model: AIC = 27.5",
+                  "quadratic model, AIC = 7",
+                  "logarithmic model, AIC = 28.3")
+
+# transfer into long data
+df = df %>% pivot_longer(cols=c("linear model: AIC = 27.5",
+                  "quadratic model, AIC = 7",
+                  "logarithmic model, AIC = 28.3"),
+                    names_to = 'source',
+                    values_to = 'value')
+head(df)
+# plot data
+ggplot()+
+  geom_point(data=resulting_df, aes(x=Age65_older, y=PublicHealthExpenditure),
+             size=3, color='#999999')+
+  geom_line(data=df, aes(x=Age65_older, y=value, group=source, color=source), size=1)+
+  scale_color_manual(values=myColor)+
+  labs(x="Aged 65 and older", 
+       y="Healthcare share of GDP", 
+       title="Regression models")+
+  theme_bw()+
+  theme(text = element_text(size = 12,
+                              color = 'black',
+                              face = 'italic'),
+          panel.border = element_rect(size = 1),
+          legend.position = 'right')
+
+```
+
+```{r}
+# Linear Regression
+linear_model <- lm(PensionShare ~ Age65_older, data = resulting_df)
+summary(linear_model)
+# Quadratic Regression
+quadratic_model <- lm(PensionShare ~ Age65_older + I(Age65_older^2), data = resulting_df)
+summary(quadratic_model)
+# Logarithmic Regression
+logarithmic_model <- lm(log(PensionShare) ~ log(Age65_older), data = resulting_df)
+summary(logarithmic_model)
+# Evaluate the models
+linear_r_squared <- summary(linear_model)$r.squared
+quadratic_r_squared <- summary(quadratic_model)$r.squared
+logarithmic_r_squared <- summary(logarithmic_model)$r.squared
+
+# Print R-squared values
+cat("Linear R-squared:", linear_r_squared, "\n")
+cat("Quadratic R-squared:", quadratic_r_squared, "\n")
+cat("Logarithmic R-squared:", logarithmic_r_squared, "\n")
+
+# Choose the model with the highest R-squared
+best_model <- linear_model
+if (quadratic_r_squared > linear_r_squared) {
+  best_model <- quadratic_model
+}
+if (logarithmic_r_squared > max(linear_r_squared, quadratic_r_squared)) {
+  best_model <- logarithmic_model
+}
+
+# AIC comparison
+library(performance)
+library(see)
+
+AIC_comp <- compare_performance(linear_model, quadratic_model, logarithmic_model)
+print_md(AIC_comp)
+plot(AIC_comp)
+```
+The R-squared values suggest that the quadratic model has the highest R-squared, indicating that it might be the best fit for our data. The AIC values can further help in model selection, with lower AIC values being preferred. In this case, the quadratic model has the lowest AIC, which supports the idea that it's the best model.
+regression analyses.
+
+1. **First Linear Regression Analysis:**
+Dependent Variable: PensionShare
+Independent Variable: Age65_older
+Relationship:
+The linear regression model indicates that PensionShare has a positive relationship with Age65_older. This means that as the proportion of the population aged 65 and older (Age65_older) increases, PensionShare also tends to increase.
+The coefficient for Age65_older is 0.50142, indicating that a one-unit increase in Age65_older corresponds to a 0.50142 unit increase in PensionShare.
+The relationship is highly statistically significant with a low p-value (p-value: 4.82e-10).
+The adjusted R-squared value is 0.7589, suggesting that approximately 75.89% of the variance in PensionShare is explained by Age65_older.
+
+2. **Second Linear Regression Analysis:**
+Dependent Variable: PensionShare
+Independent Variables:
+Age65_older
+I(Age65_older^2) (Age65_older squared)
+Relationship:
+This analysis accounts for a quadratic relationship between PensionShare and Age65_older. It suggests a more complex relationship compared to the linear model.
+The coefficient for Age65_older is 2.54484, indicating a positive linear relationship.
+The coefficient for I(Age65_older^2) is -0.05837, indicating a negative quadratic relationship.
+The relationship is statistically significant with p-values of 0.0133 for Age65_older and 0.0422 for the quadratic term.
+The adjusted R-squared value is 0.787, suggesting that approximately 78.7% of the variance in PensionShare is explained by Age65_older and its quadratic term.
+
+3. **Third Linear Regression Analysis:**
+Dependent Variable: log(PensionShare)
+Independent Variable: log(Age65_older)
+Relationship:
+In this analysis, both the dependent and independent variables are transformed by taking their natural logarithms (log).
+The linear regression model indicates that log(PensionShare) has a positive relationship with log(Age65_older).
+The coefficient for log(Age65_older) is 0.70316, indicating that a one-unit increase in the natural logarithm of Age65_older corresponds to a 0.70316 unit increase in the natural logarithm of PensionShare.
+The relationship is highly statistically significant with a very low p-value (p-value: 2.13e-10).
+The adjusted R-squared value is 0.7729, suggesting that approximately 77.29% of the variance in log(PensionShare) is explained by log(Age65_older).
+Overall, the results indicate that Age65_older is a significant predictor of PensionShare. The first analysis suggests a linear positive relationship, the second analysis suggests a more complex relationship with both linear and quadratic components, and the third analysis confirms a positive logarithmic relationship between the variables. The choice of which model to use depends on the specific context and the underlying relationships in the data.
+
+```{r}
+# prepare data ready for plot
+df = cbind(resulting_df$Age65_older,
+           predict(linear_model), 
+           predict(quadratic_model), 
+           exp(predict(logarithmic_model)))
+df = as.tibble(df)
+colnames(df) <- c("Age65_older", 
+                  "linear model, AIC = 43.9",
+                  "quadratic model, AIC = 41.2",
+                  "logarithmic model, AIC = 41.5")
+
+# transfer into long data
+df = df %>% pivot_longer(cols=c("linear model, AIC = 43.9",
+                  "quadratic model, AIC = 41.2",
+                  "logarithmic model, AIC = 41.5"),
+                    names_to = 'source',
+                    values_to = 'value')
+head(df)
+# plot data
+ggplot()+
+  geom_point(data=resulting_df, aes(x=Age65_older, y=PensionShare),
+             size=3, color='#999999')+
+  geom_line(data=df, aes(x=Age65_older, y=value, group=source, color=source), size=1)+
+  scale_color_manual(values=myColor)+
+  labs(x="Aged 65 and older", 
+       y="Pension share of GDP", 
+       title="Regression models")+
+  theme_bw()+
+  theme(text = element_text(size = 12,
+                              color = 'black',
+                              face = 'italic'),
+          panel.border = element_rect(size = 1),
+          legend.position = 'right')
+```
+
+
+```{r}
+# Fit a multiple linear regression model with more variables
+linear_model <- lm(PensionShare ~ Age65_older + ChildDependencyRatio + UnemploymentRate, data = resulting_df)
+
+# Summary of the updated linear model
+summary(linear_model)
+
+
+# Residuals vs. Fitted Values Plot
+plot(linear_model)
+# Normal Q-Q Plot
+qqnorm(residuals(linear_model))
+qqline(residuals(linear_model))
+# Scale-Location Plot
+plot(fitted(linear_model), sqrt(abs(resid(linear_model))))
+
+# Partial Regression Plots
+library(car)  # Load the 'car' package for the 'qqPlot' function
+qqPlot(linear_model, "Age65_older")
+qqPlot(linear_model, "ChildDependency")
+qqPlot(linear_model, "Unemployment")
+
+
+```
+
+```{r}
+# Fit a multiple linear regression model with more variables
+linear_model <- lm(PensionShare ~ Age65_older + ChildDependencyRatio + UnemploymentRate+ Population + BirthRate, data = resulting_df)
+
+# Summary of the updated linear model
+summary(linear_model)
+
+# Step-wise comparison
+step.model = stepAIC(linear_model, direction = 'both', trace=FALSE)
+summary(step.model)
+```
+Linear Regression Analysis:
+Dependent Variable: PensionShare
+Independent Variables: Age65_older, ChildDependencyRatio, UnemploymentRate
+Relationships:
+Age65_older has a negative relationship with PensionShare, as indicated by the coefficient.
+ChildDependencyRatio has a slightly negative relationship with PensionShare, although it is not statistically significant based on the p-value.
+UnemploymentRate has a positive relationship with PensionShare, though it is not statistically significant.
+
+### Visualization for variables
+```{r}
+# data visualization
+# healthcare expenditure - PublicHealthExpenditure
+ggplot(data=resulting_df, aes(x=year, y=PublicHealthExpenditure))+
+  geom_point(size=3, color="#999999")+
+  geom_line(size=1.3, color="#999999")+
+  scale_x_continuous(breaks=seq(1990, 2022, 2))+
+  theme_bw()+
+  theme(text = element_text(size = 12,
+                              color = 'black',
+                              face = 'italic'),
+          panel.border = element_rect(size = 1),
+          legend.position = 'right')+
+  labs(x='Year', y='Healthcare share of GDP (%)')
+
+
+# pension expenditure - PensionShare
+ggplot(data=resulting_df, aes(x=year, y=PensionShare))+
+  geom_point(size=3, color="#999999")+
+  geom_line(size=1.3, color="#999999")+
+  scale_x_continuous(breaks=seq(1990, 2022, 2))+
+  theme_bw()+
+  theme(text = element_text(size = 12,
+                              color = 'black',
+                              face = 'italic'),
+          panel.border = element_rect(size = 1),
+          legend.position = 'right')+
+  labs(x='Year', y='Pension share of GDP (%)')
+
+# aged 65 and older - Age65_older
+ggplot(data=resulting_df, aes(x=year, y=Age65_older))+
+  geom_point(size=3, color="#8ECFC9")+
+  geom_line(size=1.3, color="#8ECFC9")+
+  scale_x_continuous(breaks=seq(1990, 2022, 2))+
+  theme_bw()+
+  theme(text = element_text(size = 12,
+                              color = 'black',
+                              face = 'italic'),
+          panel.border = element_rect(size = 1),
+          legend.position = 'right')+
+  labs(x='Year', y='Percentage of population aged 65 and older')
+```
+
+```{r}
+# combining healthcare data and pension data (same unit)
+df = cbind(resulting_df$year,
+           resulting_df$PensionShare, resulting_df$PublicHealthExpenditure)
+df = as.tibble(df)
+colnames(df) <- c('year','Pension share', 'Healthcare share')
+df = df %>% pivot_longer(cols=c('Pension share', 'Healthcare share'),
+                          names_to = 'source', 
+                          values_to = 'value')
+
+ggplot(data=df, aes(x=year, y=value, group=source))+
+  geom_point(size=3, aes(color=source))+
+  geom_line(size=1.3, aes(color=source))+
+  scale_x_continuous(breaks=seq(1990, 2022, 2))+
+  theme_bw()+
+  theme(text = element_text(size = 12,
+                              color = 'black',
+                              face = 'italic'),
+          panel.border = element_rect(size = 1),
+          legend.position = 'right')+
+  labs(x='Year', y='Share of GDP (%)')
+```
+
+**Conclusion:**
+
+In this analysis, we explored several socio-economic factors influencing pension share and health share in France over time. The study encompassed variables like age dependency ratio, unemployment rate, GDP, healthcare expenditure, and population growth. The following key findings emerged:
+
+1. **Age Dependency Ratio Impact:** Age dependency ratio, particularly the proportion of the population aged 65 and older, showed a significant positive correlation with pension share. As the aging population increased, the pension share also tended to rise, indicating a direct relationship between the two variables.
+2. **Unemployment Rate Influence:** Unemployment rate, a measure of economic stability, demonstrated a negative correlation with pension share. Countries with lower unemployment rates tended to have higher pension shares, suggesting a link between economic health and pension distribution.
+3. **Population Growth and GDP:** While population growth did not exhibit a direct correlation with pension share, GDP per capita showcased a more complex relationship. Higher GDP per capita generally corresponded to increased pension shares; however, this relationship was influenced by other factors such as healthcare expenditure and government policies.
+4. **Healthcare Expenditure Impact:** Public health expenditure as a percentage of GDP appeared to positively influence pension share. Countries investing more in public healthcare tended to have higher pension shares, indicating a potential indirect relationship between public welfare and pension policies.
+
+**Limitations:**
+
+1. **Data Availability:** The study relied on available data, which might not cover all variables uniformly or across all time periods. This limitation could affect the accuracy of the findings. This project is replicable, as some 
+2. **Simplification of Factors:** The analysis focused on a limited set of socio-economic factors. Other nuanced variables, such as government policies, cultural attitudes towards aging, and regional economic disparities, were not fully explored. However, we were mindful of the events during the timeframe.
+3. **Causality:** While correlations were identified, establishing causation between variables requires further in-depth studies. The observed relationships do not necessarily imply direct cause and effect.
+4. **Temporal Aspects:** Socio-economic dynamics change over time. Factors influencing pension share in the past might not hold the same significance in the future, necessitating periodic re-evaluation of the analysis.
+
+**Future Directions:**
+
+Future research endeavors could delve deeper into the impact of specific policy interventions on pension share and healthcare costs. Longitudinal studies tracking policy changes in various countries could provide valuable insights into the effectiveness of different approaches. Additionally, examining the socio-cultural aspects influencing attitudes towards pensions and retirement could enrich the understanding of these complex relationships.
+
+In summary, this analysis provides a valuable snapshot of the interplay between demographic and economic factors and their influence on pension share. While the findings shed light on important correlations, ongoing research and a holistic approach considering diverse socio-economic elements are crucial for a comprehensive understanding of pension systems worldwide.
